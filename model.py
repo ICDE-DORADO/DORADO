@@ -1517,8 +1517,6 @@ class DoradoModel(nn.Module):
                     'beta_min': float(beta_flat.min().item()) if beta_flat is not None and beta_flat.numel() > 0 else None,
                     'beta_max': float(beta_flat.max().item()) if beta_flat is not None and beta_flat.numel() > 0 else None,
                 }
-
-        # loss = task_loss + 0.1 * ortho_loss + temporal_contrastive_loss + 0.1 * mutual_distill_loss
         loss = task_loss + ortho_loss + temporal_contrastive_loss + 0.5*mutual_distill_loss
                                      
         return scores_en, loss, task_loss, ortho_loss, temporal_contrastive_loss, mutual_distill_loss
