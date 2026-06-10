@@ -1,4 +1,3 @@
-~~~markdown
 # DORADO
 
 This repository contains the implementation of **DORADO**:  
@@ -19,7 +18,7 @@ DORADO/
 |-- calculate_metrics.py     # Lifecycle metric calculation
 |-- BERT/                    # Pre-trained BERT model directory
 |-- data/                    # Dataset directory
-~~~
+```
 
 The `data/` directory should contain the benchmark datasets, e.g.,
 
