@@ -40,7 +40,6 @@ def load_pickle_auto(file_path):
     with open(file_path, 'rb') as f:
         magic = f.read(2)
 
-    # gzip magic bytes: 1f 8b
     if magic == b'\x1f\x8b':
         with gzip.open(file_path, 'rb') as f:
             return pickle.load(f)
@@ -212,23 +211,17 @@ def load_from_local(dir, dataset):
 
 
 def resolve_data_base_dir(dataset):
-    """
-    Find a local base directory that contains data/{dataset}/entity2id.txt.
-    For server: expects ../adhub/ICEWS14/0.1/data/ structure
-    """
     base_dir = os.path.dirname(__file__)
     project_root = os.path.dirname(base_dir) if os.path.basename(base_dir) == 'code' else base_dir
 
-    # Server-optimized candidate paths (check adhub structure first)
     candidate_bases = [
-        os.path.join(base_dir, '..', 'adhub', 'ICEWS18', '0.1', 'data'),  # Server adhub path
-        os.path.join(base_dir, '..', 'data'),  # Local data relative to code dir
+        os.path.join(base_dir, '..', 'adhub', 'ICEWS18', '0.1', 'data'),  
+        os.path.join(base_dir, '..', 'data'),  
         os.path.join(os.getcwd(), 'data'),
         os.path.join(base_dir, 'data'),
         os.path.join(project_root, 'data'),
     ]
 
-    # Remove duplicates while preserving order
     seen = set()
     unique_candidates = []
     for base in candidate_bases:
@@ -236,15 +229,12 @@ def resolve_data_base_dir(dataset):
             seen.add(base)
             unique_candidates.append(base)
 
-    # Try to find the dataset
     for base in unique_candidates:
-        # For server adhub structure: base already points to .../data, dataset inside
         entity_path = os.path.join(base, dataset, 'entity2id.txt')
         if os.path.isfile(entity_path):
             logging.info(f"Using dataset path: {entity_path}")
             return base
         
-        # Also try direct path (for cases where base already points to dataset directory)
         direct_entity_path = os.path.join(base, 'entity2id.txt')
         if os.path.isfile(direct_entity_path):
             logging.info(f"Using dataset path: {direct_entity_path}")
@@ -301,7 +291,6 @@ def re_spilt(dataset, split_ratio=[0.5, 0.2, 0.3]):
     dataset.train = train_triples
     dataset.valid = val_triples
     dataset.test = test_triples
-    # Log actual split statistics
     total_triples = len(all_triples)
     train_count = len(train_triples)
     val_count = len(val_triples)
@@ -361,7 +350,7 @@ def encode_interaction_trace(head, interaction_trace, embedding_dict, model, dev
     valid_event_embedding[:, 1] = relation_proj(relation_embedding[r])
     valid_event_embedding[:, 2] = entity_proj(entity_embedding[o])
     valid_event_embedding[:, 3] = time_projection(t.unsqueeze(-1).float())
-    unmasked_indices = torch.nonzero(~trace_mask, as_tuple=False)  # (K, 2)
+    unmasked_indices = torch.nonzero(~trace_mask, as_tuple=False)  
     i_idx, j_idx = unmasked_indices[:, 0], unmasked_indices[:, 1]
     trace_embedding[:, 0, 0] = entity_proj(entity_embedding[head])
     trace_embedding[i_idx, j_idx] = valid_event_embedding
@@ -528,7 +517,6 @@ def parse_args():
 
 
 def main(args):
-    # Handle result_dir default for server
     if args.result_dir is None:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         args.result_dir = os.path.join(script_dir, 'results')
@@ -544,12 +532,10 @@ def main(args):
     print("Device: ", device)
     print("loading graph data")
     data = load_from_local(data_base_dir, args.dataset)
-    # Parse split ratio from string format (e.g., "50_20_30" -> [0.5, 0.2, 0.3])
     ratio_parts = args.split_ratio.split('_')
     if len(ratio_parts) != 3:
         raise ValueError(f"Invalid split_ratio format: {args.split_ratio}. Expected format: 'train_val_test' (e.g., '50_20_30')")
     split_ratio = [int(ratio_parts[0]) / 100.0, int(ratio_parts[1]) / 100.0, int(ratio_parts[2]) / 100.0]
-    # Validate that ratios sum to approximately 100%
     ratio_sum = sum(split_ratio)
     if abs(ratio_sum - 1.0) > 0.01:
         raise ValueError(f"Split ratios must sum to 100%, but got {ratio_sum*100:.1f}%")
@@ -571,7 +557,6 @@ def main(args):
     valid_time = times[int(len(times) * split_ratio[0]):int(len(times) * (split_ratio[0] + split_ratio[1]))]
     test_time = times[int(len(times) * (split_ratio[0] + split_ratio[1])):]
     test_time = test_time[:-1]
-    # Log time-based split statistics
     logging.info(f"[Time Split] Total time periods: {len(times)}")
     logging.info(f"[Time Split] Train periods: {len(train_time)} ({len(train_time)/len(times):.1%}), "
                  f"Valid periods: {len(valid_time)} ({len(valid_time)/len(times):.1%}), "
@@ -638,10 +623,6 @@ def main(args):
         triples_at_time = all_triple_original[all_triple_original[:, 3] == time].copy()
         test_list.append(triples_at_time)
 
-    # ------------------------------------------------------------------
-    # History cache to avoid rebuilding graphs every epoch (speedup)
-    # Keyed by (split, idx); values are lists produced by build_history_graphs_fast
-    # ------------------------------------------------------------------
     history_cache = {'train': {}, 'valid': {}, 'test': {}}
 
     best_result_dict = {}
@@ -799,7 +780,6 @@ def main(args):
                 mrr, hit1, hit3, hit10 = utils.get_metric(rank_list)
                 print(f"Epoch: {epoch}, Valid Loss: {valid_loss / len(valid_loss_list):.4f}")
 
-            # Use overall MRR for early stopping
             if mrr > best_val_mrr:
                 best_val_mrr = mrr
                 test_loss = 0
@@ -930,10 +910,7 @@ if __name__ == "__main__":
 
     args = parse_args()
 
-    # Batch run all split_ratio settings
     split_ratio_values = ["5_45_50", "10_40_50", "20_40_40", "30_30_40", "40_30_30", "50_20_30", "60_20_20", "70_10_20", "80_10_10"]
-    #split_ratio_values = ["20_40_40", "30_30_40", "40_30_30", "50_20_30", "60_20_20", "70_10_20", "80_10_10"]
-    # split_ratio_values = ["5_45_50"]
 
     original_stdout.write("=" * 80 + "\n")
     original_stdout.write(f"Batch running split_ratio values: {split_ratio_values}\n")
@@ -949,10 +926,8 @@ if __name__ == "__main__":
         original_stdout.write("=" * 80 + "\n")
         original_stdout.flush()
 
-        # Update split_ratio argument
         args.split_ratio = split_ratio
 
-        # Run training/evaluation
         try:
             main(args)
             all_results[split_ratio] = "done"
@@ -965,7 +940,6 @@ if __name__ == "__main__":
             import traceback
             traceback.print_exc()
 
-    # Print summary
     original_stdout.write("\n" + "=" * 80 + "\n")
     original_stdout.write("split_ratio batch run summary\n")
     original_stdout.write("=" * 80 + "\n")
