@@ -54,7 +54,6 @@ class RGCNLayer(nn.Module):
         if prev_h is not None and len(prev_h) != 0 and self.skip_connect:
             skip_weight = F.sigmoid(torch.mm(prev_h, self.skip_connect_weight) + self.skip_connect_bias)
 
-        # message passing implemented in subclasses
         node_repr = self.propagate_layer(x, edge_index, edge_type, edge_norm)
         if self.bias is not None:
             node_repr = node_repr + self.bias
@@ -104,7 +103,7 @@ class RGCNBlockLayer(RGCNLayer, MessagePassing):
 
     def propagate_layer(self, x, edge_index, edge_type, edge_norm):
         weight = self.weight.index_select(0, edge_type).view(
-            -1, self.submat_in, self.submat_out)  # [E, submat_in, submat_out]
+            -1, self.submat_in, self.submat_out)  
         node = x[edge_index[0]].view(-1, 1, self.submat_in)
         msg = torch.bmm(node, weight).view(-1, self.out_feat)
         out = self.propagate(edge_index=edge_index, x=msg, edge_weight=edge_norm)
@@ -133,7 +132,7 @@ class UnionRGCNLayer(MessagePassing):
         self.rel_emb = None
         self.skip_connect = skip_connect
 
-        # WL
+        
         self.weight_neighbor = nn.Parameter(torch.Tensor(self.in_feat, self.out_feat))
         nn.init.xavier_uniform_(self.weight_neighbor, gain=nn.init.calculate_gain('relu'))
 
@@ -205,7 +204,7 @@ class UnionRGATLayer(MessagePassing):
         self.rel_emb = None
         self.skip_connect = skip_connect
 
-        # WL
+        
         self.weight_neighbor = nn.Parameter(torch.Tensor(self.in_feat, self.out_feat))
         nn.init.xavier_uniform_(self.weight_neighbor, gain=nn.init.calculate_gain('relu'))
 
@@ -226,7 +225,7 @@ class UnionRGATLayer(MessagePassing):
         else:
             self.dropout = None
 
-        # equation (2)
+        
         self.attn_fc = nn.Linear(3 * self.out_feat, self.out_feat, bias=False)
         self.attn_fc2 = nn.Linear(self.out_feat, 1, bias=False)
         nn.init.xavier_normal_(self.attn_fc.weight, gain=nn.init.calculate_gain('relu'))
@@ -238,7 +237,7 @@ class UnionRGATLayer(MessagePassing):
         if prev_h is not None and len(prev_h) != 0 and self.skip_connect:
             skip_weight = F.sigmoid(torch.mm(prev_h, self.skip_connect_weight) + self.skip_connect_bias)
 
-        # Compute attention scores
+        
         row, col = edge_index
         src_h = x[row]
         dst_h = x[col]
@@ -246,10 +245,10 @@ class UnionRGATLayer(MessagePassing):
         z2 = torch.cat([src_h, dst_h, relation], dim=1)
         e_att = F.leaky_relu(self.attn_fc2(self.attn_fc(z2)))
 
-        # Normalize attention scores
+        
         alpha = scatter(e_att, col, dim=0, dim_size=x.size(0), reduce='softmax')
 
-        # Message passing
+        
         msg = torch.cat([src_h, dst_h, relation], dim=1)
         msg = self.attn_fc(msg)
         msg = alpha * msg
@@ -287,7 +286,7 @@ class CompGCNLayer(MessagePassing):
         self.skip_connect = skip_connect
         self.comp = comp
 
-        # WL
+        
         self.weight_neighbor = nn.Parameter(torch.Tensor(self.in_feat, self.out_feat))
         nn.init.xavier_uniform_(self.weight_neighbor, gain=nn.init.calculate_gain('relu'))
 
@@ -315,7 +314,7 @@ class CompGCNLayer(MessagePassing):
         if prev_h is not None and len(prev_h) != 0 and self.skip_connect:
             skip_weight = F.sigmoid(torch.mm(prev_h, self.skip_connect_weight) + self.skip_connect_bias)
 
-        # Message passing
+        
         node_repr = self.propagate(edge_index=edge_index, x=x, edge_type=edge_type, edge_weight=edge_norm)
 
         if prev_h is not None and len(prev_h) != 0 and self.skip_connect:
@@ -454,10 +453,10 @@ class RGCNCell(BaseRGCN):
             raise NotImplementedError
 
     def forward(self, g, init_ent_emb, init_rel_emb):
-        # g is a torch_geometric.data.Data
+        
         if self.encoder_name in ["uvrgcn", "kbat", "compgcn"]:
             node_id = g.id.squeeze()
-            x = init_ent_emb[node_id]  # initial node features
+            x = init_ent_emb[node_id]  
             r = init_rel_emb
             edge_index = g.edge_index
             edge_type = g.edge_type
@@ -530,8 +529,8 @@ class EarlyStopping:
 
 
 def sort_by_last_dim_with_neg1_last(arr):
-    # arr: shape (B, N, 4)
-    last_val = arr[:, :, 3]  # shape (B, N)
+    
+    last_val = arr[:, :, 3]  
 
                                
     sort_key = torch.where(last_val == -1, torch.tensor(float('inf'), device=arr.device), last_val)
@@ -640,7 +639,7 @@ class TransductiveConvDecoder(torch.nn.Module):
 
         self.conv1 = torch.nn.Conv1d(2, channels, kernel_size, stride=1,
                                      padding=int(math.floor(
-                                         kernel_size / 2)))  # kernel size is odd, then padding = math.floor(kernel_size/2)
+                                         kernel_size / 2)))  
         self.bn0 = torch.nn.BatchNorm1d(2)
         self.bn1 = torch.nn.BatchNorm1d(channels)
         self.bn2 = torch.nn.BatchNorm1d(embedding_dim)
@@ -937,7 +936,7 @@ class DoradoModel(nn.Module):
                 ent_bert_path = None
                 word_bert_path = None
 
-                # Find the first existing base directory
+                
                 for base in candidate_bases:
                     test_path = os.path.join(base, dataset_name, f'{dataset_name}_Bert_Entity_Embedding.npy')
                     if os.path.exists(test_path):
@@ -1079,7 +1078,6 @@ class DoradoModel(nn.Module):
 
             self.trans_w_cl = nn.Linear(self.trans_hidden_dim * 2, self.trans_hidden_dim)
             self.contrastive_temperature = contrastive_temperature
-            # MLPLinear: two linear layers with LeakyReLU (exactly like transductive stream)
             self.trans_projection_linear1 = nn.Linear(self.trans_hidden_dim, self.trans_hidden_dim)
             self.trans_projection_linear2 = nn.Linear(self.trans_hidden_dim, self.trans_hidden_dim)
             self.trans_projection_act = nn.LeakyReLU(0.2)
@@ -1113,7 +1111,7 @@ class DoradoModel(nn.Module):
 
     def e2r(self, triplets, num_rels):
                           
-        # Convert to numpy if needed (original transductive stream expects numpy array)
+       
         if isinstance(triplets, torch.Tensor):
             triplets = triplets.cpu().numpy()
         triplets = np.asarray(triplets)
